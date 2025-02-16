@@ -70,16 +70,10 @@ static bool set_nonblock(const int fd) {
     return true;
 }
 
-typedef enum LastWritten {
-    LAST_WRITTEN_NEWLINE,
-    LAST_WRITTEN_X,
-    LAST_WRITTEN_PARTIAL,
-} LastWritten;
-
 typedef struct State {
     jack_client_t *client;
     jack_port_t *port;
-    LastWritten last_written;
+    bool line_completed;
 } State;
 
 static int close_and_fail(jack_client_t * const client) {
@@ -97,6 +91,31 @@ static char int_to_hex(int n) {
     return '?';
 }
 
+static bool flush_buf(
+    const char * const buf,
+    const size_t len,
+    State * const state
+) {
+    const ssize_t written = write(STDOUT_FILENO, buf, len);
+    if (written < 1) {
+        return false;
+    }
+    if (written > (ssize_t)len) {
+        state->line_completed = false;
+        return false;
+    }
+    switch (buf[written - 1]) {
+        case '\n':
+        case 'X':
+            state->line_completed = true;
+            break;
+        default:
+            state->line_completed = false;
+            break;
+    }
+    return written == (ssize_t)len;
+}
+
 static int process(const jack_nframes_t nframes, void * const arg) {
     State * const state = arg;
     jack_port_t * const port = state->port;
@@ -109,23 +128,11 @@ static int process(const jack_nframes_t nframes, void * const arg) {
         return -1;
     }
 
-    if (state->last_written == LAST_WRITTEN_PARTIAL) {
-        switch (write(STDOUT_FILENO, "X\n", 2)) {
-            case 1:
-                state->last_written = LAST_WRITTEN_X;
-                return 0;
-            case 2:
-                break;
-            default:
-                return 0;
-        }
-    } else if (
-        state->last_written == LAST_WRITTEN_X
-        && write(STDOUT_FILENO, "\n", 1) != 1
-    ) {
-        return 0;
+    char buf[128];
+    size_t buflen = 0;
+    if (!state->line_completed) {
+        buf[buflen++] = 'X';
     }
-    state->last_written = LAST_WRITTEN_NEWLINE;
 
     const jack_nframes_t count = jack_midi_get_event_count(buffer);
     for (jack_nframes_t i = 0; i < count; ++i) {
@@ -133,9 +140,6 @@ static int process(const jack_nframes_t nframes, void * const arg) {
         if (jack_midi_event_get(&event, buffer, i) != 0) {
             break;
         }
-        char buf[128];
-        size_t buflen = 0;
-        fprintf(stderr, "got event, size %zu\n", event.size);
         for (size_t i = 0; i < event.size; ++i) {
             const unsigned char value = event.buffer[i];
             buf[buflen++] = int_to_hex(value >> 4);
@@ -143,18 +147,14 @@ static int process(const jack_nframes_t nframes, void * const arg) {
             if (buflen < sizeof(buf)) {
                 continue;
             }
-            if (write(STDOUT_FILENO, buf, buflen) != (ssize_t)buflen) {
-                state->last_written = LAST_WRITTEN_PARTIAL;
+            if (!flush_buf(buf, buflen, state)) {
                 return 0;
             }
             buflen = 0;
         }
         buf[buflen++] = '\n';
-        if (write(STDOUT_FILENO, buf, buflen) != (ssize_t)buflen) {
-            state->last_written = LAST_WRITTEN_PARTIAL;
-            return 0;
-        }
     }
+    flush_buf(buf, buflen, state);
     return 0;
 }
 
@@ -201,7 +201,7 @@ int main(const int argc, char ** const argv) {
     State state = {
         .client = client,
         .port = NULL,
-        .last_written = LAST_WRITTEN_NEWLINE,
+        .line_completed = true,
     };
     const int spc_status = jack_set_process_callback(client, process, &state);
     if (spc_status != 0) {

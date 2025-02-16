@@ -150,7 +150,6 @@ static int process(const jack_nframes_t nframes, void * const arg) {
             break;
         }
         node = next;
-        fprintf(stderr, "writing event, length %zu\n", node->length);
         jack_midi_event_write(buffer, 0, node->message, node->length);
     }
     atomic_store_explicit(&state->head, node, memory_order_release);
@@ -322,6 +321,11 @@ int main(const int argc, char ** const argv) {
                     break;
                 }
                 for (size_t i = 0; i < (size_t)n; ++i) {
+                    if (buf[i] == 'X') {
+                        // Discard partial line.
+                        linelen = 0;
+                        continue;
+                    }
                     if (buf[i] == '\n') {
                         line[linelen] = '\0';
                         handle_line(&state, line, linelen);
