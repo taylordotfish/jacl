@@ -8,17 +8,17 @@ endif
 
 CFLAGS += -std=c11 -Wall -Wextra -pedantic $(OPT)
 
-ALL = jackcv jack-stdin-to-midi jack-midi-to-stdin
+ALL = jacl-cv jacl-stdio2midi jacl-midi2stdio
 
 .PHONY: all
 all: $(ALL)
 
-jackcv: jackcv.c
-jack-stdin-to-midi: jack-stdin-to-midi.c
-jack-midi-to-stdin: jack-midi-to-stdin.c
+jacl-cv: cv.c
+jacl-stdio2midi: stdio2midi.c
+jacl-midi2stdio: midi2stdio.c
 
 $(ALL):
-	gcc $< -o $@ -ljack $(CFLAGS)
+	$(CC) $< -o $@ -ljack $(CFLAGS)
 
 .PHONY: clean
 clean:

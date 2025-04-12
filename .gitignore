@@ -1,4 +1,3 @@
+/jacl-*
+!*.*
 *.swp
-/jackcv
-/jack-stdin-to-midi
-/jack-midi-to-stdin

@@ -1,3 +1,19 @@
+/*
+ * Copyright (C) 2025 taylor.fish <contact@taylor.fish>
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program. If not, see <https://www.gnu.org/licenses/>.
+ */
 #define _POSIX_C_SOURCE 1
 #include <assert.h>
 #include <errno.h>
@@ -16,6 +32,16 @@
 
 static int sigfd_write;
 
+static const char *USAGE = "\
+Usage: %s [client-name]\n\
+\n\
+Writes incoming JACK MIDI data to standard output. Each line contains one\n\
+MIDI message in hexadecimal format.\n\
+\n\
+[client-name] is the name of the JACK client to create; if not provided, the\n\
+default is 'midi2stdio'.\n\
+";
+
 static void usage(FILE * const stream, const char * const arg0) {
     const char *bin = arg0 ? arg0 : "";
     size_t start = 0;
@@ -26,9 +52,9 @@ static void usage(FILE * const stream, const char * const arg0) {
     }
     bin += start;
     if (*bin == '\0') {
-        bin = "jack-midi-to-stdin";
+        bin = "jacl-midi2stdio";
     }
-    fprintf(stream, "Usage: %s [client-name]\n", bin);
+    fprintf(stream, USAGE, bin);
 }
 
 static void on_exit(const int signum) {
@@ -165,6 +191,10 @@ int main(const int argc, char ** const argv) {
             usage(stdout, argv[0]);
             return EXIT_SUCCESS;
         }
+        if (strcmp(argv[1], "--version") == 0) {
+            puts("0.1");
+            return EXIT_SUCCESS;
+        }
         if (strcmp(argv[1], "--") == 0) {
             ++argi;
         }
@@ -189,7 +219,7 @@ int main(const int argc, char ** const argv) {
         }
     }
 
-    const char * const name = argc > argi ? argv[argi] : "jm2s";
+    const char * const name = argc > argi ? argv[argi] : "midi2stdio";
     jack_status_t status = 0;
     jack_client_t * const client =
         jack_client_open(name, JackNoStartServer, &status);
