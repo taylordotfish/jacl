@@ -21,4 +21,4 @@ License
 -------
 
 jacl is licensed under the GNU General Public License, version 3 or (at your
-option) any later version. See [LICENSE].
+option) any later version. See [LICENSE](LICENSE).
